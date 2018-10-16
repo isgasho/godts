@@ -17,7 +17,7 @@ func ZkStateStringFormat(s *zk.Stat) string {
 }
 
 func Connect() {
-	conn, _, err := zk.Connect([]string{"zbrd.zk1.cnhz.shishike.com:2181"}, time.Second*5)
+	conn, _, err := zk.Connect([]string{"localhost:2181"}, time.Second*5)
 	if err != nil {
 		fmt.Println(err)
 		return
