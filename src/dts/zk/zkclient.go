@@ -16,8 +16,8 @@ func ZkStateStringFormat(s *zk.Stat) string {
 		s.Czxid, s.Mzxid, s.Ctime, s.Mtime, s.Version, s.Cversion, s.Aversion, s.EphemeralOwner, s.DataLength, s.NumChildren, s.Pzxid)
 }
 
-func Connect() {
-	conn, _, err := zk.Connect([]string{"localhost:2181"}, time.Second*5)
+func Connect(servers []string, sessionTimeout time.Duration) {
+	conn, _, err := zk.Connect(servers, sessionTimeout)
 	if err != nil {
 		fmt.Println(err)
 		return
