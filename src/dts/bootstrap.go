@@ -1,8 +1,8 @@
 package main
 
 import (
-	"dts/zk"
 	"fmt"
+	"github.com/DaigangLi/godts/src/dts/zk"
 )
 
 func main() {
