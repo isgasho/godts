@@ -6,23 +6,27 @@ import (
 )
 
 var isLoad = false
-var _prop *properties.Properties
 
-func apply() {
+type Prop struct {
+	FileNames []string
+	_prop     *properties.Properties
+}
+
+func (prop *Prop) apply() {
 	if !isLoad {
 		absPath, _ := filepath.Abs("../godts/config/server.properties")
 		// init from a file
-		_prop = properties.MustLoadFiles([]string{absPath}, properties.UTF8, true)
+		prop._prop = properties.MustLoadFiles([]string{absPath}, properties.UTF8, true)
 		isLoad = true
 	}
 }
 
-func GetString(key string) string {
-	apply()
-	return _prop.MustGetString(key)
+func (prop *Prop) GetString(key string) string {
+	prop.apply()
+	return prop._prop.MustGetString(key)
 }
 
-func GetInt(key string, def int) int {
-	apply()
-	return _prop.GetInt(key, def)
+func (prop *Prop) GetInt(key string, def int) int {
+	prop.apply()
+	return prop._prop.GetInt(key, def)
 }
