@@ -1,14 +1,20 @@
 package main
 
 import (
-	"fmt"
-	"github.com/DaigangLi/godts/src/dts/prop"
+	"github.com/DaigangLi/godts/src/dts/conf"
+	"github.com/DaigangLi/godts/src/dts/mail"
+	"github.com/DaigangLi/godts/src/dts/web"
 	"github.com/DaigangLi/godts/src/dts/zk"
+	"log"
 )
+
+func init() {
+}
 
 func main() {
 
-	prop := &prop.Prop{}
+	prop := &conf.Prop{}
+
 	zkServers := prop.GetString("zookeeper.connect")
 	//zksessionTimeout := prop.GetInt("zookeeper.connection.timeout.ms", 5000)
 
@@ -39,7 +45,15 @@ func main() {
 				// 1.从元数据中恢复集群状态
 				// 2.重置各个数据源的同步数据位置
 				// 3.开始同步数据
-				fmt.Println("I'm master. wait for start dts service.")
+				log.Println("I'm master. wait for start dts service.")
+
+				yml := &conf.Yml{}
+				ymlContext := yml.GetYmlContext()
+
+				mail.Send(ymlContext.Mail)
+
+				// 开启web
+				web.Start()
 			}
 		}
 	}

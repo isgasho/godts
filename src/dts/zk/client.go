@@ -3,20 +3,35 @@ package zk
 import (
 	"fmt"
 	"github.com/samuel/go-zookeeper/zk"
+	"log"
+	"strings"
 	"time"
 )
 
+type ZkConfig struct {
+	servers        []string
+	sessionTimeout time.Duration
+}
+
+func NewZkConfig(servers string, sessionTimeout int) *ZkConfig {
+	zkConfig := &ZkConfig{
+		strings.Split(servers, ","),
+		time.Millisecond * time.Duration(sessionTimeout),
+	}
+	return zkConfig
+}
+
 type ZkClient struct {
-	Servers        string
-	SessionTimeout int
+	zkConfig *ZkConfig
+	conn     *zk.Conn
 }
 
 func (zkClient *ZkClient) Connect() {
-	sessionTimeout := time.Millisecond * time.Duration(zkClient.SessionTimeout)
 
-	conn, event, err := zk.Connect([]string{zkClient.Servers}, sessionTimeout)
+	zkConfig := zkClient.zkConfig
+	conn, event, err := zk.Connect(zkConfig.servers, zkConfig.sessionTimeout)
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 		return
 	}
 	defer conn.Close()
@@ -24,12 +39,12 @@ func (zkClient *ZkClient) Connect() {
 	//// get
 	//data, state, err := conn.Get("/")
 	//if err != nil {
-	//	fmt.Println(err)
+	//	log.Println(err)
 	//	return
 	//}
 	//
-	//fmt.Println("%s", data)
-	//fmt.Println("%s", ZkStateStringFormat(state))
+	//log.Println("%s", data)
+	//log.Println("%s", ZkStateStringFormat(state))
 
 	// 等待连接成功
 	for {
@@ -38,10 +53,10 @@ func (zkClient *ZkClient) Connect() {
 		case zkEvent := <-event:
 			if zkEvent.State == zk.StateConnected {
 				isConnected = true
-				fmt.Println("connect to zookeeper server success!")
+				log.Println("connect to zookeeper server success!")
 			}
-		case _ = <-time.After(sessionTimeout):
-			fmt.Println("connect to zookeeper server timeout!")
+		case _ = <-time.After(zkConfig.sessionTimeout):
+			log.Println("connect to zookeeper server timeout!")
 			break
 		}
 		if isConnected {
