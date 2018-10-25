@@ -1,10 +1,11 @@
-package main
+package godts
 
 import (
-	"github.com/DaigangLi/godts/src/dts/conf"
-	"github.com/DaigangLi/godts/src/dts/mail"
-	"github.com/DaigangLi/godts/src/dts/web"
-	"github.com/DaigangLi/godts/src/dts/zk"
+	"github.com/DaigangLi/godts/cache"
+	"github.com/DaigangLi/godts/conf"
+	"github.com/DaigangLi/godts/db"
+	"github.com/DaigangLi/godts/source"
+	"github.com/DaigangLi/godts/zk"
 	"log"
 )
 
@@ -47,13 +48,20 @@ func main() {
 				// 3.开始同步数据
 				log.Println("I'm master. wait for start dts service.")
 
+				cache.NewCache()
+
+				db.Select()
+
 				yml := &conf.Yml{}
 				ymlContext := yml.GetYmlContext()
 
-				mail.Send(ymlContext.Mail)
+				//mail.Send(ymlContext.Mail)
+
+				source.StartCanal(ymlContext.Mysql)
 
 				// 开启web
-				web.Start()
+				//web.Start()
+
 			}
 		}
 	}

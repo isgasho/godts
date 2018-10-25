@@ -2,7 +2,7 @@ package web
 
 import (
 	"fmt"
-	"github.com/DaigangLi/godts/src/dts/web/ui"
+	"github.com/DaigangLi/godts/web/ui"
 	"github.com/gin-gonic/gin"
 	"log"
 	"net/http"

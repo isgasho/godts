@@ -2,14 +2,14 @@ mail:
   host: smtp.gmail.com
   port: 25
   user-name: lidaigang01@gmail.com
-  password: -
+  password:
   ssl-port: 465
 
 mysql:
-  server-id: 100
+  server-id: 1
   flavor: mysql
-  host: 127.0.0.1
+  host: zbrd.calm-master.cnhz.shishike.com
   port: 3306
-  user: root
-  password: -
-  binlog-file: -
+  user: maxwell
+  password: maxwell
+  binlog-file: mysql-bin.000577

@@ -1,7 +1,7 @@
 package mail
 
 import (
-	"github.com/DaigangLi/godts/src/dts/conf"
+	"github.com/DaigangLi/godts/conf"
 	"github.com/go-mail/mail"
 )
 
