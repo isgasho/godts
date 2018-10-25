@@ -1,10 +1,8 @@
-package godts
+package main
 
 import (
 	"github.com/DaigangLi/godts/cache"
 	"github.com/DaigangLi/godts/conf"
-	"github.com/DaigangLi/godts/db"
-	"github.com/DaigangLi/godts/source"
 	"github.com/DaigangLi/godts/zk"
 	"log"
 )
@@ -48,16 +46,25 @@ func main() {
 				// 3.开始同步数据
 				log.Println("I'm master. wait for start dts service.")
 
-				cache.NewCache()
-
-				db.Select()
-
 				yml := &conf.Yml{}
 				ymlContext := yml.GetYmlContext()
 
-				//mail.Send(ymlContext.Mail)
+				cache.NewCache()
+				cache.Cache().SetDefault("test", ymlContext.Mysql)
 
-				source.StartCanal(ymlContext.Mysql)
+				if item, ok := cache.Cache().Get("test"); ok {
+					if mysqlConf, ok := item.(*conf.Mysql); ok {
+						log.Printf(mysqlConf.BinlogFile)
+					}
+				}
+
+				//db.Select()
+				//
+
+				//
+				////mail.Send(ymlContext.Mail)
+				//
+				//source.StartCanal(ymlContext.Mysql)
 
 				// 开启web
 				//web.Start()
