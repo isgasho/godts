@@ -14,6 +14,7 @@ import (
 )
 
 func StartReplication(mysqlConf *conf.Mysql) {
+
 	// Create a binlog syncer with a unique server id, the server id must be different from other MySQL's.
 	// flavor is mysql or mariadb
 	cfg := replication.BinlogSyncerConfig{

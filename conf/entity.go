@@ -20,5 +20,10 @@ type Mysql struct {
 	Port       uint16
 	User       string
 	Password   string
+	Database   string
 	BinlogFile string `yaml:"binlog-file"`
+}
+
+func (mysqlConf *Mysql) ToConnectStr() string {
+	return mysqlConf.User + ":" + mysqlConf.Password + "@/" + mysqlConf.Database
 }

@@ -3,6 +3,7 @@ package main
 import (
 	"github.com/DaigangLi/godts/cache"
 	"github.com/DaigangLi/godts/conf"
+	"github.com/DaigangLi/godts/db"
 	"github.com/DaigangLi/godts/zk"
 	"log"
 )
@@ -48,6 +49,8 @@ func main() {
 
 				yml := &conf.Yml{}
 				ymlContext := yml.GetYmlContext()
+
+				db.Init(ymlContext.Mysql)
 
 				cache.NewCache()
 				cache.Cache().SetDefault("test", ymlContext.Mysql)
