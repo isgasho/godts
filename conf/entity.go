@@ -1,5 +1,9 @@
 package conf
 
+import (
+	"fmt"
+)
+
 type YmlContext struct {
 	Mail  *Mail  `yaml:"mail"`
 	Mysql *Mysql `yaml:"mysql"`
@@ -25,5 +29,6 @@ type Mysql struct {
 }
 
 func (mysqlConf *Mysql) ToConnectStr() string {
-	return mysqlConf.User + ":" + mysqlConf.Password + "@/" + mysqlConf.Database
+	port := fmt.Sprint(mysqlConf.Port)
+	return mysqlConf.User + ":" + mysqlConf.Password + "@tcp(" + mysqlConf.Host + ":" + port + ")/" + mysqlConf.Database
 }

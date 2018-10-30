@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"github.com/DaigangLi/godts/cache"
 	"github.com/DaigangLi/godts/conf"
 	"github.com/DaigangLi/godts/db"
@@ -50,7 +51,13 @@ func main() {
 				yml := &conf.Yml{}
 				ymlContext := yml.GetYmlContext()
 
-				db.Init(ymlContext.Mysql)
+				db.InitEngine(ymlContext.Mysql)
+				results, err := db.GetEngine().QueryString("show master status")
+				if err == nil {
+					for k, v := range results {
+						fmt.Printf("%s=%d;", k, v)
+					}
+				}
 
 				cache.NewCache()
 				cache.Cache().SetDefault("test", ymlContext.Mysql)

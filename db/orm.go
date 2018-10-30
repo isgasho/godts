@@ -3,17 +3,24 @@ package db
 import (
 	"github.com/DaigangLi/godts/conf"
 	_ "github.com/go-sql-driver/mysql"
-	"github.com/xormplus/xorm"
+	"github.com/go-xorm/xorm"
+	"sync"
 )
 
 var engine *xorm.Engine
+var once sync.Once
 
-func Init(mysqlConf *conf.Mysql) {
-	newEngine, err := xorm.NewEngine("mysql", mysqlConf.ToConnectStr())
-	if err != nil {
-		engine = newEngine
-	}
+func InitEngine(mysqlConf *conf.Mysql) {
 
-	engine.ShowSQL(true)
-	engine.DBMetas()
+	once.Do(func() {
+		ormEngine, err := xorm.NewEngine("mysql", mysqlConf.ToConnectStr())
+		if err == nil {
+			engine = ormEngine
+			engine.ShowSQL(true)
+		}
+	})
+}
+
+func GetEngine() *xorm.Engine {
+	return engine
 }

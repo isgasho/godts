@@ -12,4 +12,5 @@ mysql:
   port: 3306
   user: maxwell
   password: maxwell
+  database: maxwell
   binlog-file: mysql-bin.000577
