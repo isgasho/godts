@@ -5,6 +5,7 @@ import (
 	"github.com/DaigangLi/godts/cache"
 	"github.com/DaigangLi/godts/conf"
 	"github.com/DaigangLi/godts/db"
+	"github.com/DaigangLi/godts/source"
 	"github.com/DaigangLi/godts/zk"
 	"log"
 )
@@ -52,6 +53,12 @@ func main() {
 				ymlContext := yml.GetYmlContext()
 
 				db.InitEngine(ymlContext.Mysql)
+
+				var syncSource source.Source
+				syncSource = &source.MysqlSource{}
+
+				syncSource.StartReplication(ymlContext.Mysql)
+
 				results, err := db.GetEngine().QueryString("show master status")
 				if err == nil {
 					for k, v := range results {

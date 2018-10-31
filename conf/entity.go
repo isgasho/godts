@@ -17,6 +17,10 @@ type Mail struct {
 	SslPort  int `yaml:"ssl-port"`
 }
 
+type DBConf interface {
+	ToConnectStr() string
+}
+
 type Mysql struct {
 	ServerId   uint32 `yaml:"server-id"`
 	Flavor     string

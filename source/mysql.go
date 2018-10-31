@@ -4,66 +4,165 @@ import (
 	"context"
 	"fmt"
 	"github.com/DaigangLi/godts/conf"
+	"github.com/DaigangLi/godts/db"
 	"github.com/siddontang/go-mysql/canal"
 	"github.com/siddontang/go-mysql/mysql"
 	"github.com/siddontang/go-mysql/replication"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 )
 
-func StartReplication(mysqlConf *conf.Mysql) {
+type MysqlSource struct {
+}
 
-	// Create a binlog syncer with a unique server id, the server id must be different from other MySQL's.
-	// flavor is mysql or mariadb
-	cfg := replication.BinlogSyncerConfig{
-		ServerID: mysqlConf.ServerId,
-		Flavor:   mysqlConf.Flavor,
-		Host:     mysqlConf.Host,
-		Port:     mysqlConf.Port,
-		User:     mysqlConf.User,
-		Password: mysqlConf.Password,
-	}
-	syncer := replication.NewBinlogSyncer(cfg)
+type Databases struct {
+	Id       uint64
+	SchemaId int
+	Name     string
+	Charset  string
+}
 
-	var binlogPos uint32 = 0
+type Tables struct {
+	Id         uint64
+	SchemaId   uint64
+	DatabaseId uint64
+	Name       string
+	Charset    string
+	Pk         string
+}
 
-	// Start sync with specified binlog file and position
-	streamer, _ := syncer.StartSync(mysql.Position{mysqlConf.BinlogFile, binlogPos})
+type Columns struct {
+	Id           uint64
+	SchemaId     uint64
+	TableId      uint64
+	Name         string
+	Charset      string
+	Coltype      string
+	IsSigned     uint
+	EnumValues   string
+	ColumnLength uint
+}
 
-	// or you can start a gtid replication like
-	// streamer, _ := syncer.StartSyncGTID(gtidSet)
-	// the mysql GTID set likes this "de278ad0-2106-11e4-9f8e-6edd0ca20947:1-2"
-	// the mariadb GTID set likes this "0-1-100"
+type BinlogPosition struct {
+	GtidSetStr      string
+	File            string
+	Position        uint32
+	ExecutedGtidSet string
+}
 
-	for {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		ev, err := streamer.GetEvent(ctx)
-		cancel()
+func InitBinlogPosition() *BinlogPosition {
+	var binlogPosition *BinlogPosition
+	results, err := db.GetEngine().QueryString("show master status")
 
-		if err == context.DeadlineExceeded {
-			// meet timeout
-			continue
+	if err == nil && len(results) > 0 {
+		fristRow := results[0]
+		position, _ := strconv.ParseUint(fristRow["Position"], 0, 32)
+
+		binlogPosition = &BinlogPosition{
+			GtidSetStr:      "",
+			File:            fristRow["File"],
+			Position:        uint32(position),
+			ExecutedGtidSet: fristRow["Executed_Gtid_Set"],
 		}
+	}
 
-		ev.Header.Dump(os.Stdout)
-		if rowsEvent, ok := ev.Event.(*replication.RowsEvent); ok {
-			fmt.Fprintf(os.Stdout, "Table Name:%q\n", rowsEvent.Table.Table)
-			fmt.Fprintf(os.Stdout, "Schema:%q\n", rowsEvent.Table.Schema)
-			for _, rows := range rowsEvent.Rows {
-				fmt.Fprintf(os.Stdout, "--\n")
-				for j, d := range rows {
-					if _, ok := d.([]byte); ok {
-						fmt.Fprintf(os.Stdout, "%d:%q\n", j, d)
-					} else {
-						fmt.Fprintf(os.Stdout, "%d:%#v\n", j, d)
+	return binlogPosition
+}
+
+var tableMap map[uint64]Tables
+var tableColumnMap map[string]map[int]Columns
+
+func InitMetaData() {
+	var tables []Tables
+	db.GetEngine().Find(&tables)
+
+	if len(tables) > 0 {
+		tableMap = make(map[uint64]Tables)
+		for _, table := range tables {
+			tableMap[table.Id] = table
+		}
+	}
+
+	var columns []Columns
+	db.GetEngine().Find(&columns)
+
+	if len(columns) > 0 {
+		var tableId uint64
+		tableId = 0
+
+		tableColumnMap = make(map[string]map[int]Columns)
+
+		var idx int
+		for _, column := range columns {
+			if tableId != column.TableId {
+				idx = 0
+				tableId = column.TableId
+				tableColumnMap[column.TableId] = make(map[int]Columns)
+			}
+			tableColumnMap[column.TableId][idx] = column
+			idx++
+		}
+	}
+}
+
+func (mysqlSource *MysqlSource) StartReplication(dbConf conf.DBConf) {
+	if mysqlConf, ok := dbConf.(*conf.Mysql); ok {
+
+		InitMetaData()
+
+		binlogPosition := InitBinlogPosition()
+
+		// Create a binlog syncer with a unique server id, the server id must be different from other MySQL's.
+		// flavor is mysql or mariadb
+		cfg := replication.BinlogSyncerConfig{
+			ServerID: mysqlConf.ServerId,
+			Flavor:   mysqlConf.Flavor,
+			Host:     mysqlConf.Host,
+			Port:     mysqlConf.Port,
+			User:     mysqlConf.User,
+			Password: mysqlConf.Password,
+		}
+		syncer := replication.NewBinlogSyncer(cfg)
+
+		// Start sync with specified binlog file and position
+		streamer, _ := syncer.StartSync(mysql.Position{binlogPosition.File, binlogPosition.Position})
+
+		// or you can start a gtid replication like
+		// streamer, _ := syncer.StartSyncGTID(gtidSet)
+		// the mysql GTID set likes this "de278ad0-2106-11e4-9f8e-6edd0ca20947:1-2"
+		// the mariadb GTID set likes this "0-1-100"
+
+		for {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			ev, err := streamer.GetEvent(ctx)
+			cancel()
+
+			if err == context.DeadlineExceeded {
+				// meet timeout
+				continue
+			}
+
+			ev.Header.Dump(os.Stdout)
+			if rowsEvent, ok := ev.Event.(*replication.RowsEvent); ok {
+				fmt.Fprintf(os.Stdout, "Table Name:%q\n", rowsEvent.Table.Table)
+				fmt.Fprintf(os.Stdout, "Schema:%q\n", rowsEvent.Table.Schema)
+				for _, rows := range rowsEvent.Rows {
+					fmt.Fprintf(os.Stdout, "--\n")
+					for j, d := range rows {
+						if _, ok := d.([]byte); ok {
+							fmt.Fprintf(os.Stdout, "%s:%q\n", tableColumnMap[rowsEvent.TableID][j].Name, d)
+						} else {
+							fmt.Fprintf(os.Stdout, "%s:%#v\n", tableColumnMap[rowsEvent.TableID][j].Name, d)
+						}
 					}
 				}
 			}
-		}
 
-		//ev.Dump(os.Stdout)
+			//ev.Dump(os.Stdout)
+		}
 	}
 }
 
