@@ -72,10 +72,22 @@ func InitBinlogPosition() *BinlogPosition {
 	return binlogPosition
 }
 
+var dataBasesMap map[uint64]Databases
 var tableMap map[uint64]Tables
 var tableColumnMap map[string]map[int]Columns
 
 func InitMetaData() {
+
+	var dataBases []Databases
+	db.GetEngine().Find(&dataBases)
+
+	if len(dataBases) > 0 {
+		dataBasesMap = make(map[uint64]Databases)
+		for _, dataBase := range dataBases {
+			dataBasesMap[dataBase.Id] = dataBase
+		}
+	}
+
 	var tables []Tables
 	db.GetEngine().Find(&tables)
 
@@ -97,12 +109,19 @@ func InitMetaData() {
 
 		var idx int
 		for _, column := range columns {
+
+			tlbName := tableMap[column.TableId].Name
+			dbName := dataBasesMap[tableMap[column.TableId].DatabaseId].Name
+			combKey := dbName + "." + tlbName
+
 			if tableId != column.TableId {
 				idx = 0
 				tableId = column.TableId
-				tableColumnMap[column.TableId] = make(map[int]Columns)
+
+				tableColumnMap[combKey] = make(map[int]Columns)
 			}
-			tableColumnMap[column.TableId][idx] = column
+
+			tableColumnMap[combKey][idx] = column
 			idx++
 		}
 	}
@@ -149,13 +168,15 @@ func (mysqlSource *MysqlSource) StartReplication(dbConf conf.DBConf) {
 			if rowsEvent, ok := ev.Event.(*replication.RowsEvent); ok {
 				fmt.Fprintf(os.Stdout, "Table Name:%q\n", rowsEvent.Table.Table)
 				fmt.Fprintf(os.Stdout, "Schema:%q\n", rowsEvent.Table.Schema)
+
+				findKey := string(rowsEvent.Table.Schema) + "." + string(rowsEvent.Table.Table)
 				for _, rows := range rowsEvent.Rows {
 					fmt.Fprintf(os.Stdout, "--\n")
 					for j, d := range rows {
 						if _, ok := d.([]byte); ok {
-							fmt.Fprintf(os.Stdout, "%s:%q\n", tableColumnMap[rowsEvent.TableID][j].Name, d)
+							fmt.Fprintf(os.Stdout, "%s:%q\n", tableColumnMap[findKey][j].Name, d)
 						} else {
-							fmt.Fprintf(os.Stdout, "%s:%#v\n", tableColumnMap[rowsEvent.TableID][j].Name, d)
+							fmt.Fprintf(os.Stdout, "%s:%#v\n", tableColumnMap[findKey][j].Name, d)
 						}
 					}
 				}
