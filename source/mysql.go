@@ -2,6 +2,7 @@ package source
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/DaigangLi/godts/conf"
 	"github.com/DaigangLi/godts/db"
@@ -51,6 +52,11 @@ type BinlogPosition struct {
 	File            string
 	Position        uint32
 	ExecutedGtidSet string
+}
+
+type BinlogEventFormatter interface {
+	IsSupport() bool
+	Format(binlogEvent *replication.BinlogEvent) string
 }
 
 func InitBinlogPosition() *BinlogPosition {
@@ -154,6 +160,7 @@ func (mysqlSource *MysqlSource) StartReplication(dbConf conf.DBConf) {
 		// the mysql GTID set likes this "de278ad0-2106-11e4-9f8e-6edd0ca20947:1-2"
 		// the mariadb GTID set likes this "0-1-100"
 
+		var binlogEventFormatter BinlogEventFormatter = &JsonFormatter{}
 		for {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			ev, err := streamer.GetEvent(ctx)
@@ -164,28 +171,99 @@ func (mysqlSource *MysqlSource) StartReplication(dbConf conf.DBConf) {
 				continue
 			}
 
-			ev.Header.Dump(os.Stdout)
-			if rowsEvent, ok := ev.Event.(*replication.RowsEvent); ok {
-				fmt.Fprintf(os.Stdout, "Table Name:%q\n", rowsEvent.Table.Table)
-				fmt.Fprintf(os.Stdout, "Schema:%q\n", rowsEvent.Table.Schema)
-
-				findKey := string(rowsEvent.Table.Schema) + "." + string(rowsEvent.Table.Table)
-				for _, rows := range rowsEvent.Rows {
-					fmt.Fprintf(os.Stdout, "--\n")
-					for j, d := range rows {
-						if _, ok := d.([]byte); ok {
-							fmt.Fprintf(os.Stdout, "%s:%q\n", tableColumnMap[findKey][j].Name, d)
-						} else {
-							fmt.Fprintf(os.Stdout, "%s:%#v\n", tableColumnMap[findKey][j].Name, d)
-						}
-					}
-				}
+			if binlogEventFormatter.IsSupport() {
+				fmt.Println(binlogEventFormatter.Format(ev))
 			}
-
-			//ev.Dump(os.Stdout)
 		}
 	}
 }
+
+type JsonFormatter struct{}
+
+func (jsonFormatter *JsonFormatter) IsSupport() bool {
+	return true
+}
+
+func (jsonFormatter *JsonFormatter) Format(binlogEvent *replication.BinlogEvent) string {
+
+	if rowsEvent, ok := binlogEvent.Event.(*replication.RowsEvent); ok {
+
+		context := make(map[string]interface{})
+		context["instance"] = "001"
+		context["server_id"] = "mysql001"
+		context["source_type"] = "mysql"
+		context["db"] = string(rowsEvent.Table.Schema)
+		context["table_name"] = string(rowsEvent.Table.Table)
+		context["timestamp"] = time.Now().UnixNano() / 1e6
+		context["primary"] = "id"
+
+		var eventType string
+		switch binlogEvent.Header.EventType {
+		case replication.WRITE_ROWS_EVENTv1 | replication.WRITE_ROWS_EVENTv2:
+			eventType = "insert"
+		case replication.UPDATE_ROWS_EVENTv1 | replication.UPDATE_ROWS_EVENTv1:
+			eventType = "update"
+		case replication.DELETE_ROWS_EVENTv1 | replication.DELETE_ROWS_EVENTv2:
+			eventType = "delete"
+		}
+
+		context["type"] = eventType
+
+		fieldList := make([]map[string]interface{}, rowsEvent.ColumnCount*2)
+		findKey := string(rowsEvent.Table.Schema) + "." + string(rowsEvent.Table.Table)
+		//var value string
+		for f, rows := range rowsEvent.Rows {
+			level := f * int(rowsEvent.ColumnCount)
+			//fmt.Fprintf(os.Stdout, "--\n")
+			for j, d := range rows {
+
+				fieldItem := make(map[string]interface{})
+				fieldItem["name"] = tableColumnMap[findKey][j].Name
+				fieldItem["value"] = d
+
+				fieldList[level+j] = fieldItem
+			}
+		}
+
+		context["fields"] = fieldList
+
+		json, err := json.MarshalIndent(context, "", "    ")
+
+		if err != nil {
+			return ""
+		}
+
+		return string(json)
+	}
+
+	return ""
+}
+
+//type SimpleFormatter struct{}
+//
+//func (simpleFormatter *SimpleFormatter) IsSupport() bool {
+//	return true
+//}
+//
+//func (simpleFormatter *SimpleFormatter) Format(binlogEvent *replication.BinlogEvent) string {
+//	binlogEvent.Header.Dump(os.Stdout)
+//	if rowsEvent, ok := binlogEvent.Event.(*replication.RowsEvent); ok {
+//		fmt.Fprintf(os.Stdout, "Table Name:%q\n", rowsEvent.Table.Table)
+//		fmt.Fprintf(os.Stdout, "Schema:%q\n", rowsEvent.Table.Schema)
+//
+//		findKey := string(rowsEvent.Table.Schema) + "." + string(rowsEvent.Table.Table)
+//		for _, rows := range rowsEvent.Rows {
+//			fmt.Fprintf(os.Stdout, "--\n")
+//			for j, d := range rows {
+//				if _, ok := d.([]byte); ok {
+//					fmt.Fprintf(os.Stdout, "%s:%q\n", tableColumnMap[findKey][j].Name, d)
+//				} else {
+//					fmt.Fprintf(os.Stdout, "%s:%#v\n", tableColumnMap[findKey][j].Name, d)
+//				}
+//			}
+//		}
+//	}
+//}
 
 func StartCanal(mysqlConf *conf.Mysql) {
 	cfg := canal.NewDefaultConfig()
