@@ -1,17 +1,20 @@
 package source
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/DaigangLi/godts/conf"
 	"github.com/DaigangLi/godts/db"
+	"github.com/siddontang/go-log/log"
 	"github.com/siddontang/go-mysql/canal"
 	"github.com/siddontang/go-mysql/mysql"
 	"github.com/siddontang/go-mysql/replication"
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 )
@@ -160,7 +163,7 @@ func (mysqlSource *MysqlSource) StartReplication(dbConf conf.DBConf) {
 		// the mysql GTID set likes this "de278ad0-2106-11e4-9f8e-6edd0ca20947:1-2"
 		// the mariadb GTID set likes this "0-1-100"
 
-		var binlogEventFormatter BinlogEventFormatter = &JsonFormatter{}
+		var binlogEventFormatter BinlogEventFormatter = &CompactJsonFormatter{}
 		for {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			ev, err := streamer.GetEvent(ctx)
@@ -185,7 +188,10 @@ func (jsonFormatter *JsonFormatter) IsSupport() bool {
 }
 
 func (jsonFormatter *JsonFormatter) Format(binlogEvent *replication.BinlogEvent) string {
+	return parseBinlogEventToJson(binlogEvent)
+}
 
+func parseBinlogEventToJson(binlogEvent *replication.BinlogEvent) string {
 	if rowsEvent, ok := binlogEvent.Event.(*replication.RowsEvent); ok {
 
 		context := make(map[string]interface{})
@@ -230,7 +236,7 @@ func (jsonFormatter *JsonFormatter) Format(binlogEvent *replication.BinlogEvent)
 		json, err := json.MarshalIndent(context, "", "    ")
 
 		if err != nil {
-			return ""
+			log.Infof("unexpected of JSON input")
 		}
 
 		return string(json)
@@ -239,31 +245,55 @@ func (jsonFormatter *JsonFormatter) Format(binlogEvent *replication.BinlogEvent)
 	return ""
 }
 
-//type SimpleFormatter struct{}
-//
-//func (simpleFormatter *SimpleFormatter) IsSupport() bool {
-//	return true
-//}
-//
-//func (simpleFormatter *SimpleFormatter) Format(binlogEvent *replication.BinlogEvent) string {
-//	binlogEvent.Header.Dump(os.Stdout)
-//	if rowsEvent, ok := binlogEvent.Event.(*replication.RowsEvent); ok {
-//		fmt.Fprintf(os.Stdout, "Table Name:%q\n", rowsEvent.Table.Table)
-//		fmt.Fprintf(os.Stdout, "Schema:%q\n", rowsEvent.Table.Schema)
-//
-//		findKey := string(rowsEvent.Table.Schema) + "." + string(rowsEvent.Table.Table)
-//		for _, rows := range rowsEvent.Rows {
-//			fmt.Fprintf(os.Stdout, "--\n")
-//			for j, d := range rows {
-//				if _, ok := d.([]byte); ok {
-//					fmt.Fprintf(os.Stdout, "%s:%q\n", tableColumnMap[findKey][j].Name, d)
-//				} else {
-//					fmt.Fprintf(os.Stdout, "%s:%#v\n", tableColumnMap[findKey][j].Name, d)
-//				}
-//			}
-//		}
-//	}
-//}
+type CompactJsonFormatter struct{}
+
+func (compactJsonFormatter *CompactJsonFormatter) IsSupport() bool {
+	return true
+}
+
+func (compactJsonFormatter *CompactJsonFormatter) Format(binlogEvent *replication.BinlogEvent) string {
+
+	stdJsonData := parseBinlogEventToJson(binlogEvent)
+
+	if strings.Compare("", stdJsonData) != 0 {
+		compactedBuffer := new(bytes.Buffer)
+		err := json.Compact(compactedBuffer, []byte(stdJsonData))
+		if err != nil {
+			log.Infof("unexpected of JSON input")
+		}
+
+		return compactedBuffer.String()
+	}
+	return stdJsonData
+}
+
+type SimpleFormatter struct{}
+
+func (simpleFormatter *SimpleFormatter) IsSupport() bool {
+	return true
+}
+
+func (simpleFormatter *SimpleFormatter) Format(binlogEvent *replication.BinlogEvent) string {
+	binlogEvent.Header.Dump(os.Stdout)
+	if rowsEvent, ok := binlogEvent.Event.(*replication.RowsEvent); ok {
+		fmt.Fprintf(os.Stdout, "Table Name:%q\n", rowsEvent.Table.Table)
+		fmt.Fprintf(os.Stdout, "Schema:%q\n", rowsEvent.Table.Schema)
+
+		findKey := string(rowsEvent.Table.Schema) + "." + string(rowsEvent.Table.Table)
+		for _, rows := range rowsEvent.Rows {
+			fmt.Fprintf(os.Stdout, "--\n")
+			for j, d := range rows {
+				if _, ok := d.([]byte); ok {
+					fmt.Fprintf(os.Stdout, "%s:%q\n", tableColumnMap[findKey][j].Name, d)
+				} else {
+					fmt.Fprintf(os.Stdout, "%s:%#v\n", tableColumnMap[findKey][j].Name, d)
+				}
+			}
+		}
+	}
+
+	return ""
+}
 
 func StartCanal(mysqlConf *conf.Mysql) {
 	cfg := canal.NewDefaultConfig()

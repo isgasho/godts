@@ -21,7 +21,7 @@ require (
 	github.com/pingcap/check v0.0.0-20171206051426-1c287c953996 // indirect
 	github.com/samuel/go-zookeeper v0.0.0-20180130194729-c4fab1ac1bec
 	github.com/siddontang/go v0.0.0-20180604090527-bdc77568d726 // indirect
-	github.com/siddontang/go-log v0.0.0-20180807004314-8d05993dda07 // indirect
+	github.com/siddontang/go-log v0.0.0-20180807004314-8d05993dda07
 	github.com/siddontang/go-mysql v0.0.0-20181016024542-c8bed9e1e90b
 	github.com/ugorji/go/codec v0.0.0-20181018023622-b30ce92d500b // indirect
 	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect
