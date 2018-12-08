@@ -8,7 +8,7 @@ mail:
 mysql:
   server-id: 1
   flavor: mysql
-  host: zbrd.calm-master.cnhz.shishike.com
+  host: 172.0.0.1
   port: 3306
   user: maxwell
   password: maxwell
